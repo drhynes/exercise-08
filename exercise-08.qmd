@@ -132,7 +132,6 @@ SSR <- sum((m$fitted.values - mean(m$model$Group_size))^2)
 (df_y <- nrow(d) - df_regression)
 MSR <- SSR/df_regression  
 MSY <- SSY/df_y
-fratio <- MSR/MSE
 
 
 #standard error
