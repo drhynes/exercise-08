@@ -1,0 +1,256 @@
+---
+title: "exercise-08"
+format: html
+editor: visual
+---
+
+### **Step 1**
+
+-   Using the {tidyverse} `read_csv()` function, load the “Street_et_al_2017.csv” dataset from [this URL](https://raw.githubusercontent.com/difiore/ada-datasets/main/Street_et_al_2017.csv) as a “tibble” named **d**.
+
+-   Do a quick exploratory data analysis where you generate the five-number summary (median, minimum and maximum and 1st and 3rd quartile values), plus mean and standard deviation, for each quantitative variable.
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(skimr)
+library(readr)
+
+f <- "https://raw.githubusercontent.com/difiore/ada-datasets/main/Street_et_al_2017.csv"
+d <- read_csv(f, col_names = TRUE)
+skim(d)
+```
+
+> **HINT**: The `skim()` function from the package {skimr} makes this very easy!
+
+### **Step 2**
+
+-   From this dataset, plot brain size (**ECV**) as a function of social group size (**Group_size**), longevity (**Longevity**), juvenile period length (**Weaning**), and reproductive lifespan (**Repro_lifespan**).'
+
+```{r}
+library(ggplot2)
+
+
+#ECV vs Group_size
+ggplot(d, aes(x = Group_size, y = ECV)) +
+  geom_point() +
+  labs(title = "ECV vs Group Size",
+       x = "Group Size",
+       y = "ECV")
+
+#ECV vs Longevity
+ggplot(d, aes(x = Longevity, y = ECV)) +
+  geom_point() +
+  labs(title = "ECV vs Longevity",
+       x = "Longevity",
+       y = "ECV")
+
+#ECV vs Weaning 
+ggplot(d, aes(x = Weaning, y = ECV)) +
+  geom_point() +
+  labs(title = "ECV vs Weaning",
+       x = "Weaning ",
+       y = "ECV")
+
+#ECV  vs Repro_lifespan 
+ggplot(d, aes(x = Repro_lifespan, y = ECV)) +
+  geom_point() +
+  labs(title = "ECV vs Reproductive Lifespan",
+       x = "Reproductive Lifespan",
+       y = "ECV")
+```
+
+### **Step 3**
+
+-   Derive by hand the ordinary least squares regression coefficients β1 and β0 for ECV as a function of social group size.
+
+> **HINT**: You will need to remove rows from your dataset where one of these variables is missing.
+
+```{r}
+#remove rows with N/A
+d <- d[!is.na(d$ECV) & !is.na(d$Group_size), ]
+
+b1 <- (cov(d$ECV, d$Group_size))/var(d$ECV)
+
+b0 <- mean(d$Group_size) - b1 * mean(d$ECV)
+```
+
+### **Step 4**
+
+-   Confirm that you get the same results using the `lm()` function.
+
+```{r}
+m <- lm(Group_size~ECV, data = d)
+summary(m)
+```
+
+### **Step 5**
+
+-   Repeat the analysis above for three different major radiations of primates - “catarrhines”, “platyrrhines”, and “strepsirhines”) separately. These are stored in the variable **Taxonomic_group**. Do your regression coefficients differ among groups? How might you determine this?
+
+```{r}
+# Subset groups
+d_catarrhines <- d[d$Taxonomic_group == "Catarrhini", ]
+d_platyrrhines <- d[d$Taxonomic_group == "Platyrrhini", ]
+d_strepsirhines <- d[d$Taxonomic_group == "Strepsirhini", ]
+
+#catarrhines Analysis
+m_catarrhines <- lm(Group_size~ECV, data = d_catarrhines)
+summary(m_catarrhines)
+
+#platyrrhines Analysis
+m_platyrrhines <- lm(Group_size~ECV, data = d_platyrrhines)
+summary(m_platyrrhines)
+
+#strepsirhines Analysis
+m_strepsirhines <- lm(Group_size~ECV, data = d_strepsirhines)
+summary(m_strepsirhines)
+```
+
+Yes, the coefficients are different, you can view this using the summary function above
+
+Regression Coefficients
+
+catarrhines: (B0 = 15.37445, B1 = 0.04755)
+
+platyrrhines: (B0 = 5.18692, B1 = 0.18356)
+
+strepsirhines: (B0 = 1.20674, B1 = 0.13917)
+
+### **Step 6**
+
+-   For your first regression of ECV on social group size, calculate the standard error for the slope coefficient (B1), the 95% CI, and the *p* value associated with this coefficient by hand. Also extract this same information from the results of running the `lm()` function.
+
+```{r}
+SSY <- sum((m$height - mean(m$height))^2)
+m <- lm(Group_size~ECV, data = d)
+#by hand
+SSY <- sum((m$model$Group_size - mean(m$model$Group_size))^2)
+SSR <- sum((m$fitted.values - mean(m$model$Group_size))^2)
+(df_regression <- 1)
+(df_error <- nrow(d) - df_regression - 1)
+(df_y <- nrow(d) - df_regression)
+MSR <- SSR/df_regression  
+MSY <- SSY/df_y
+fratio <- MSR/MSE
+
+
+#standard error
+SSE <- sum((m$model$Group_size - m$fitted.values)^2)
+MSE <- SSE/df_error
+SSX <- sum((m$model$weight - mean(m$model$weight))^2) 
+SEbeta1 <- sqrt(MSE/SSX)
+
+#95% CI
+n <- nrow(d)
+df <- n - 2
+t <- qt(0.975, df = df)
+CI_lower <- b1 - t * SEbeta1
+CI_upper <- b1 + t * SEbeta1
+
+#p value
+ts <- b1/SEbeta1
+p_value <- 2 * (1 - pt(abs(ts), df = df))
+
+#from results of lm
+broom::tidy(m)
+confint(m)
+```
+
+### **Step 7**
+
+-   Use a permutation approach with 1000 permutations to generate a null sampling distribution for the **slope coefficient**. What is it that you need to permute? What is the p value associated with your original slope coefficient? You can use either the quantile method (i.e., using quantiles from the actual permutation-based null sampling distribution) or a theory-based method (i.e., using the standard deviation of the permutation-based null sampling distribution as the estimate of the standard error, along with a normal or t distribution), or both, to calculate this p value.
+
+```{r}
+x <- d$ECV
+n <- length(x)
+b1 #original regression slope
+nperm <- 1000
+permutation <- vector(length = n)  # set up a vector to hold results for each permutation
+for (i in 1:nperm) {
+    
+  ECV_samp <- sample(d$ECV)
+  b1_obs <- (cov(ECV_samp, d$Group_size))/var(d$ECV)
+  permutation[i] <- b1_obs
+}
+
+perm_d <- data.frame(permutation = permutation)
+
+#histogram of permutations
+ggplot(perm_d, aes(x = permutation)) + 
+  geom_histogram(binwidth = 0.005) +  
+  labs(
+    x = "B1",
+    y = "# Permutations",
+    title = "Histogram of Permutation Distribution"
+  )
+```
+
+```{r}
+#Theory based
+#calculate stats of permutation
+mean_perm <- mean(permutation)
+sd_perm <- sd(permutation)
+se_perm <- sd_perm
+
+# Calculate the z
+z <- (b1 - mean_perm) / se_perm
+
+# Calculate the p-value with normal distribution
+p_value_norm <- 2 * (1 - pnorm(abs(z)))  
+
+#calculate the p-value using the t-distribution 
+df <- length(permutation) - 1
+p_value_t <- 2 * (1 - pt(abs(z), df = df))
+```
+
+I need to permute the calculation of the slope coefficient based off a sample of ECV
+
+The P value associated with my original slope coefficient was: **7.259435e-11** (from broom::tidy(m))
+
+p value based on t-distribution: **7.0864635e-10**
+
+### **Step 8**
+
+-   Use bootstrapping to generate a 95% CI for your estimate of the slope coefficient using both the quantile method and the theory-based method (i.e., using the standard deviation of the bootstrapped sampling distribution as an estimate of the standard error). Do these CIs suggest that your slope coefficient is different from zero?
+
+```{r}
+library(infer)
+boot.slope <- d |>
+    # specify model
+specify(Group_size ~ ECV) |>
+    # generate bootstrap replicates
+generate(reps = 1000, type = "bootstrap") |>
+    # calculate the slope statistic
+calculate(stat = "slope")
+
+head(boot.slope)  # slopes from first few bootstrap replicates
+
+boot.slope.summary <- boot.slope |>
+    # summarize the mean, standard error, CI based on the SE and t
+    # distribution, and CI based on the quantile (percentile) method
+summarize(
+  estimate = mean(stat), 
+  std.error = sd(stat), 
+  lower = estimate - std.error * qt(0.975, df = 999), #for theory method
+  upper = estimate + std.error * qt(0.975, df = 999), #for theory method
+  boot.lower = quantile(stat, 0.025), #for quantile method
+  boot.upper = quantile(stat, 0.975)) #for quantile method
+
+# show summary of bootstrap sampling distribution
+boot.slope.summary
+```
+
+These CIs do suggest that the slope is different than 0,because 0 is not included in the range of the upper and lower CI for either theory or quantile method.
+
+Theory:
+
+-Lower: 0.02298
+
+-Upper: 0.1939267
+
+Quantile:
+
+-Lower: 0.0405
+
+-Upper: 0.20482
